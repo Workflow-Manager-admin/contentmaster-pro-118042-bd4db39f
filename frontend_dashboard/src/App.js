@@ -188,6 +188,7 @@ function LoginPage() {
  */
 function SignupPage() {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('viewer');
   const [error, setError] = useState('');
@@ -198,20 +199,54 @@ function SignupPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    
+    // Client-side validation
+    if (!username.trim()) {
+      setError('Username is required');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
     try {
+      console.log('Sending signup request with:', { username, email, role, hasPassword: !!password });
+      
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, role })
+        body: JSON.stringify({ username: username.trim(), email: email.trim(), password, role })
       });
+      
       if (!res.ok) {
-        setError('Signup failed. Choose a different username.');
+        const errorText = await res.text();
+        console.error('Signup failed:', res.status, errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          setError(errorData.message || errorData.error || 'Signup failed. Please try again.');
+        } catch {
+          setError(`Signup failed (${res.status}). Please try again.`);
+        }
         return;
       }
+      
       setSuccess('Signup successful! You can now log in.');
       setTimeout(() => navigate('/login'), 1200);
-    } catch {
-      setError('Error connecting to server.');
+    } catch (err) {
+      console.error('Network error during signup:', err);
+      setError('Error connecting to server. Please check your connection.');
     }
   };
 
@@ -227,11 +262,19 @@ function SignupPage() {
             required
           />
           <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            placeholder="Email"
+            required
+          />
+          <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             type="password"
-            placeholder="Password"
+            placeholder="Password (min 6 characters)"
             required
+            minLength="6"
           />
           <select value={role} onChange={e => setRole(e.target.value)}>
             <option value="admin">Admin</option>
