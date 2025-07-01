@@ -200,34 +200,46 @@ function SignupPage() {
     setError('');
     setSuccess('');
     
-    // Client-side validation
-    if (!username.trim()) {
-      setError('Username is required');
+    // Enhanced client-side validation matching backend requirements
+    const usernameRegex = /^[a-zA-Z0-9_-]{3,32}$/;
+    if (!usernameRegex.test(username.trim())) {
+      setError('Username must be 3-32 characters, using only letters, numbers, underscore (_) or dash (-)');
       return;
     }
-    if (!email.trim()) {
-      setError('Email is required');
-      return;
-    }
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-    
-    // Basic email validation
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(email.trim())) {
       setError('Please enter a valid email address');
+      return;
+    }
+
+    if (!password || password.length < 6 || password.length > 128) {
+      setError('Password must be between 6 and 128 characters');
+      return;
+    }
+
+    if (!['admin', 'editor', 'viewer'].includes(role)) {
+      setError('Invalid role selected');
       return;
     }
     
     try {
-      console.log('Sending signup request with:', { username, email, role, hasPassword: !!password });
+      console.log('Sending signup request with:', { 
+        username: username.trim(), 
+        email: email.trim(), 
+        role,
+        hasPassword: !!password 
+      });
       
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), email: email.trim(), password, role })
+        body: JSON.stringify({ 
+          username: username.trim(), 
+          email: email.trim().toLowerCase(), 
+          password, 
+          role 
+        })
       });
       
       if (!res.ok) {
@@ -235,7 +247,15 @@ function SignupPage() {
         console.error('Signup failed:', res.status, errorText);
         try {
           const errorData = JSON.parse(errorText);
-          setError(errorData.message || errorData.error || 'Signup failed. Please try again.');
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            // Handle structured validation errors from backend
+            const errorMessages = errorData.errors.map(err => 
+              `${err.field}: ${err.message}`
+            ).join('\n');
+            setError(errorMessages);
+          } else {
+            setError(errorData.message || errorData.error || 'Signup failed. Please try again.');
+          }
         } catch {
           setError(`Signup failed (${res.status}). Please try again.`);
         }
